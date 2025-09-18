@@ -1,4 +1,5 @@
-﻿using MarketingCodingAssignment.Models;
+﻿using Lucene.Net.Search.Suggest;
+using MarketingCodingAssignment.Models;
 using MarketingCodingAssignment.Services;
 using Microsoft.AspNetCore.Mvc;
 using System.Diagnostics;
@@ -28,6 +29,13 @@ namespace MarketingCodingAssignment.Controllers
         }
 
         [HttpGet]
+        public JsonResult Autocomplete(string searchString)
+        {
+            IList<Lookup.LookupResult> searchResults = _searchEngine.AutoComplete(searchString);
+            return Json(new { searchResults });
+        }
+
+        [HttpGet]
         public JsonResult Search(string searchString, int start, int rows, int? durationMinimum, int? durationMaximum, double? voteAverageMinimum)
         {
             SearchResultsViewModel searchResults = _searchEngine.Search(searchString, start, rows, durationMinimum, durationMaximum, voteAverageMinimum);
@@ -52,6 +60,7 @@ namespace MarketingCodingAssignment.Controllers
         public void PopulateIndex()
         {
             _searchEngine.PopulateIndexFromCsv();
+            _searchEngine.PopulateSuggesterIndex();
             return;
         }
 

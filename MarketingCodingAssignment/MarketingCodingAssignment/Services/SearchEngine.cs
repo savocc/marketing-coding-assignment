@@ -1,16 +1,18 @@
-﻿using Lucene.Net.Analysis;
+﻿using CsvHelper;
+using CsvHelper.Configuration;
+using Lucene.Net.Analysis;
+using Lucene.Net.Analysis.En;
 using Lucene.Net.Analysis.Standard;
 using Lucene.Net.Documents;
 using Lucene.Net.Index;
 using Lucene.Net.Queries;
 using Lucene.Net.Search;
+using Lucene.Net.Search.Suggest;
+using Lucene.Net.Search.Suggest.Analyzing;
 using Lucene.Net.Store;
 using Lucene.Net.Util;
 using MarketingCodingAssignment.Models;
 using System.Globalization;
-using CsvHelper;
-using CsvHelper.Configuration;
-using Lucene.Net.Analysis.En;
 
 namespace MarketingCodingAssignment.Services
 {
@@ -105,9 +107,15 @@ namespace MarketingCodingAssignment.Services
 
         public void DeleteIndex()
         {
+            DeleteIndexHelper("index");
+            DeleteIndexHelper("suggester");
+        }
+
+        private void DeleteIndexHelper(string indexType)
+        {
             // Delete everything from the index
             string basePath = Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData);
-            string indexPath = Path.Combine(basePath, "index");
+            string indexPath = Path.Combine(basePath, indexType);
             using FSDirectory dir = FSDirectory.Open(indexPath);
             StandardAnalyzer analyzer = new(AppLuceneVersion);
             IndexWriterConfig indexConfig = new(AppLuceneVersion, analyzer);
@@ -122,6 +130,19 @@ namespace MarketingCodingAssignment.Services
             // Construct a machine-independent path for the index
             string basePath = Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData);
             string indexPath = Path.Combine(basePath, "index");
+
+            // Create paths and populate indices (on first run)
+            // This fixes 'non-existing path' exceptions and allows user to interact with search without having to manually rebuild index.
+            if (!System.IO.Directory.Exists(indexPath))
+            {
+                PopulateIndexFromCsv();
+            }
+            string suggesterPath = Path.Combine(basePath, "suggester");
+            if (!System.IO.Directory.Exists(suggesterPath))
+            {
+                PopulateSuggesterIndex();
+            }
+
             using FSDirectory dir = FSDirectory.Open(indexPath);
             using DirectoryReader reader = DirectoryReader.Open(dir);
             IndexSearcher searcher = new(reader);
@@ -163,6 +184,42 @@ namespace MarketingCodingAssignment.Services
 
             return searchResults;
         }
+
+        public IList<Lookup.LookupResult> AutoComplete(string input)
+        {
+            if (input == null)
+            {
+                return new List<Lookup.LookupResult>();
+            }
+
+            string basePath = Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData);
+            string suggesterPath = Path.Combine(basePath, "suggester");
+            using FSDirectory dir = FSDirectory.Open(suggesterPath);
+            using AnalyzingInfixSuggester initSuggester = new(AppLuceneVersion, dir, new StandardAnalyzer(AppLuceneVersion));
+
+            IList<Lookup.LookupResult> suggestedResults = initSuggester.DoLookup(input, 10, true, true);
+            return suggestedResults;
+
+        }
+
+        public void PopulateSuggesterIndex()
+        {
+            string basePath = Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData);
+
+            string suggesterPath = Path.Combine(basePath, "suggester");
+            using FSDirectory dir = FSDirectory.Open(suggesterPath);
+            using AnalyzingInfixSuggester initSuggester = new(AppLuceneVersion, dir, new StandardAnalyzer(AppLuceneVersion));
+
+            // Get dictionary based on existing index to build suggester
+            string indexPath = Path.Combine(basePath, "index");
+            using FSDirectory indexdir = FSDirectory.Open(indexPath);
+            using DirectoryReader reader = DirectoryReader.Open(indexdir);
+            DocumentDictionary suggesterDict = new(reader, "Title", null);
+
+            initSuggester.Build(suggesterDict);
+            initSuggester.Commit();
+        }
+
         private Query GetLuceneQuery(string searchString, int? durationMinimum, int? durationMaximum, double? voteAverageMinimum)
         {
             if (string.IsNullOrWhiteSpace(searchString))
