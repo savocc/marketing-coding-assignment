@@ -3,6 +3,7 @@ using MarketingCodingAssignment.Models;
 using MarketingCodingAssignment.Services;
 using Microsoft.AspNetCore.Mvc;
 using System.Diagnostics;
+using System.Globalization;
 
 namespace MarketingCodingAssignment.Controllers
 {
@@ -19,6 +20,7 @@ namespace MarketingCodingAssignment.Controllers
 
         public IActionResult Index()
         {
+            ViewBag.InvalidDate = DateTime.SpecifyKind(DateTime.MinValue, DateTimeKind.Utc).ToString("yyyy-MM-ddTHH:mm:ss");
             return View();
         }
 
@@ -36,9 +38,9 @@ namespace MarketingCodingAssignment.Controllers
         }
 
         [HttpGet]
-        public JsonResult Search(string searchString, int start, int rows, int? durationMinimum, int? durationMaximum, double? voteAverageMinimum)
+        public JsonResult Search(string searchString, int start, int rows, int? durationMinimum, int? durationMaximum, double? voteAverageMinimum, DateTime? releaseDateStart, DateTime? releaseDateEnd)
         {
-            SearchResultsViewModel searchResults = _searchEngine.Search(searchString, start, rows, durationMinimum, durationMaximum, voteAverageMinimum);
+            SearchResultsViewModel searchResults = _searchEngine.Search(searchString, start, rows, durationMinimum, durationMaximum, voteAverageMinimum, releaseDateStart, releaseDateEnd);
             return Json(new {searchResults});
         }
 

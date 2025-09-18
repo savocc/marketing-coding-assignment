@@ -13,6 +13,7 @@ using Lucene.Net.Store;
 using Lucene.Net.Util;
 using MarketingCodingAssignment.Models;
 using System.Globalization;
+using System.IO;
 
 namespace MarketingCodingAssignment.Services
 {
@@ -59,7 +60,8 @@ namespace MarketingCodingAssignment.Services
                 Runtime = int.TryParse(x.Runtime, out int parsedRuntime) ? parsedRuntime : 0,
                 Tagline = x.Tagline,
                 Revenue = long.TryParse(x.Revenue, out long parsedRevenue) ? parsedRevenue : 0,
-                VoteAverage = double.TryParse(x.VoteAverage, out double parsedVoteAverage) ? parsedVoteAverage : 0
+                VoteAverage = double.TryParse(x.VoteAverage, out double parsedVoteAverage) ? parsedVoteAverage : 0,
+                ReleaseDate = DateTime.TryParse(x.ReleaseDate, out DateTime releaseDate) ? releaseDate : DateTime.SpecifyKind(DateTime.MinValue, DateTimeKind.Utc)
             }).ToList();
 
             // Write the records to the lucene index
@@ -94,7 +96,8 @@ namespace MarketingCodingAssignment.Services
                     new TextField("Tagline", film.Tagline, Field.Store.YES),
                     new Int64Field("Revenue", film.Revenue ?? 0, Field.Store.YES),
                     new DoubleField("VoteAverage", film.VoteAverage ?? 0.0, Field.Store.YES),
-                    new TextField("CombinedText", film.Title + " " + film.Tagline + " " + film.Overview, Field.Store.NO)
+                    new TextField("CombinedText", film.Title + " " + film.Tagline + " " + film.Overview, Field.Store.NO),
+                    new TextField("ReleaseDate", DateTools.DateToString(film.ReleaseDate ?? DateTime.SpecifyKind(DateTime.MinValue, DateTimeKind.Utc), DateResolution.DAY), Field.Store.YES)
                 };
                 writer.AddDocument(doc);
             }
@@ -125,7 +128,7 @@ namespace MarketingCodingAssignment.Services
             return;
         }
 
-        public SearchResultsViewModel Search(string searchString, int startPage, int rowsPerPage, int? durationMinimum, int? durationMaximum, double? voteAverageMinimum)
+        public SearchResultsViewModel Search(string searchString, int startPage, int rowsPerPage, int? durationMinimum, int? durationMaximum, double? voteAverageMinimum, DateTime? releaseDateStart, DateTime? releaseDateEnd)
         {
             // Construct a machine-independent path for the index
             string basePath = Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData);
@@ -150,7 +153,7 @@ namespace MarketingCodingAssignment.Services
             int hitsLimit = 1000;
             TopScoreDocCollector collector = TopScoreDocCollector.Create(hitsLimit, true);
 
-            var query = this.GetLuceneQuery(searchString, durationMinimum, durationMaximum, voteAverageMinimum);
+            var query = this.GetLuceneQuery(searchString, durationMinimum, durationMaximum, voteAverageMinimum, releaseDateStart, releaseDateEnd);
 
             searcher.Search(query, collector);
 
@@ -171,7 +174,8 @@ namespace MarketingCodingAssignment.Services
                     Tagline = foundDoc.Get("Tagline").ToString(),
                     Revenue = long.TryParse(foundDoc.Get("Revenue"), out long parsedRevenue) ? parsedRevenue : 0,
                     VoteAverage =  double.TryParse(foundDoc.Get("VoteAverage"), out double parsedVoteAverage) ? parsedVoteAverage : 0.0,
-                    Score = hit.Score
+                    Score = hit.Score,
+                    ReleaseDate = DateTime.TryParseExact(foundDoc.Get("ReleaseDate"), "yyyyMMdd", CultureInfo.InvariantCulture, DateTimeStyles.None, out DateTime releaseDate) ? releaseDate : DateTime.SpecifyKind(DateTime.MinValue, DateTimeKind.Utc)
                 };
                 films.Add(film);
             }
@@ -220,7 +224,7 @@ namespace MarketingCodingAssignment.Services
             initSuggester.Commit();
         }
 
-        private Query GetLuceneQuery(string searchString, int? durationMinimum, int? durationMaximum, double? voteAverageMinimum)
+        private Query GetLuceneQuery(string searchString, int? durationMinimum, int? durationMaximum, double? voteAverageMinimum, DateTime? releaseDateStart, DateTime? releaseDateEnd)
         {
             if (string.IsNullOrWhiteSpace(searchString))
             {
@@ -238,13 +242,33 @@ namespace MarketingCodingAssignment.Services
             }
 
             Query rq = NumericRangeQuery.NewInt32Range("Runtime", durationMinimum, durationMaximum, true, true);
-            Query vaq = NumericRangeQuery.NewDoubleRange("VoteAverage", 0.0, 10.0, true, true);
+            Query vaq = NumericRangeQuery.NewDoubleRange("VoteAverage", voteAverageMinimum, 10.0, true, true);
+            if (!releaseDateStart.HasValue)
+            {
+                releaseDateStart = DateTime.SpecifyKind(DateTime.MinValue, DateTimeKind.Utc);
+            }
+
+            if (!releaseDateEnd.HasValue)
+            {
+                releaseDateEnd = DateTime.SpecifyKind(DateTime.MaxValue, DateTimeKind.Utc);
+            }
+            string lowerDate = DateTools.DateToString(releaseDateStart.Value, DateResolution.DAY);
+            string upperDate = DateTools.DateToString(releaseDateEnd.Value, DateResolution.DAY);
+            Query dq = new TermRangeQuery(
+                "ReleaseDate",
+                new BytesRef(lowerDate),
+                new BytesRef(upperDate),
+                true,
+                true
+            );
 
             // Apply the filters.
             BooleanQuery bq = new()
             {
                 { pq, Occur.MUST },
-                { rq, Occur.MUST }
+                { rq, Occur.MUST },
+                { vaq,Occur.MUST },
+                { dq, Occur.MUST }
             };
 
             return bq;

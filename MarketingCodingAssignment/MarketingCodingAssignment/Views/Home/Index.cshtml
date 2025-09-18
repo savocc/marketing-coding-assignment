@@ -40,10 +40,13 @@
             color:red;
         }
 
+        a {
+            text-decoration: none;
+            color: black;
+        }
+
         label {
             color:black;
-            padding-left: 7px;
-            font-weight: bold;
             font-size: 13px;
         }
 
@@ -64,6 +67,31 @@
 
         .autocomplete .dropdown-menu:empty {
             display: none !important;
+        }
+
+        #searchresults .panel {
+            border: none;
+            border-radius: 0.5rem;
+            box-shadow: 0 0.125rem 0.25rem rgba(0,0,0,.075);
+        }
+
+        #searchresults .panel-heading {
+            background-color: #becee8;
+            color: white;
+            padding: 0.75rem 1rem;
+            border-radius: 0.5rem 0.5rem 0 0;
+        }
+
+        #searchresults .panel-body {
+            padding: 1rem;
+        }
+
+        .material-symbols-outlined {
+            padding-top: 5px;
+        }
+
+        #results-count {
+            text-align: center;
         }
 
     </style>
@@ -129,7 +157,7 @@
             updateSearch();
         }
 
-        $("#durationMinimumFacet, #durationMaximumFacet, #voteAverageMinimumFacet").on("change", function () {
+        $("#durationMinimumFacet, #durationMaximumFacet, #voteAverageMinimumFacet, #releaseDateStartFacet, #releaseDateEndFacet").on("change", function () {
             updateSearchAndResetCount();
         });
 
@@ -156,7 +184,9 @@
                 data: {
                     voteAverageMinimum: document.getElementById("voteAverageMinimumFacet").value,
                     durationMinimum: document.getElementById("durationMinimumFacet").value,
-                    durationMaximum: document.getElementById("durationMaximumFacet").value
+                    durationMaximum: document.getElementById("durationMaximumFacet").value,
+                    releaseDateStart: document.getElementById("releaseDateStartFacet").value,
+                    releaseDateEnd: document.getElementById("releaseDateEndFacet").value
                 },
                 success: function (ajaxResponse) {
                     console.log(ajaxResponse);
@@ -229,20 +259,29 @@
             // Loop through the results and format for display.
             for (var i = 0; i < resultCount; ++i) {
                 var item = results[i];
-                lines.push("<div class='panel panel-primary'>");
+                lines.push("<div class='panel panel-primary mb-3'>");
                 lines.push("<div class='panel-heading'><h3 class='panel-title'><a href='https://www.imdb.com/title/" + htmlEncode(item.id) + "'>" + htmlEncode(item.title) + "</a></h3></div>");
                 lines.push("<div class='panel-body'>");
-                if (item.tagline || item.runtime || item.revenue) {
+                if (item.tagline || item.runtime || item.revenue || item.voteAverage) {
                     lines.push("<div>");
-                    if (item.tagline) lines.push("<span class='tagline'><em>" + item.tagline + "</em></span>");
-                    if (item.tagline && (item.runtime || item.revenue)) lines.push(" | ");
-                    if (item.runtime) lines.push("<span> " + item.runtime + " minutes</span>");
-                    if (item.runtime && item.revenue) lines.push(" | ");
-                    if (item.revenue) lines.push("<span>" + item.revenue.toLocaleString("en-US", { style: "currency", currency: "USD" }) + "</span>");
+                    var itemFields = [];
+                    if(item.tagline){
+                        itemFields.push("<span class='tagline'><em>" + item.tagline + "</em></span>");
+                    }
+                    if(item.runtime){
+                        itemFields.push("<span> " + item.runtime + " minutes</span>");
+                    }
+                    if(item.revenue){
+                        itemFields.push("<span>" + item.revenue.toLocaleString("en-US", { style: "currency", currency: "USD" }) + "</span>");
+                    }
+                    if(item.voteAverage){
+                        itemFields.push("<span> " + item.voteAverage + "</span>");
+                    }
+                    lines.push(itemFields.join(" | "));
                     lines.push("</div>");
                 }
 
-                if (item.releaseDate) lines.push("<div>Initially released " + new Date(item.releaseDate).toLocaleDateString() + "</div>");
+                if (item.releaseDate != '@ViewBag.InvalidDate') lines.push("<div>Initially released on " + new Date(item.releaseDate).toLocaleDateString() + ".</div>");
                 if (item.overview) lines.push("<div class='overview'>" + item.overview + "</div>");
                 lines.push("</div>");
                 lines.push("</div>");
@@ -284,72 +323,124 @@
 }
 
 <div class="text-center">
-    <h1 class="display-4">Film Search</h1>
+    <h1 class="display-4 my-4">Film Search</h1>
 </div>
 <div style="max-width: 50em; margin: 0 auto">
-    <div class="autocomplete" style="margin-bottom:10px">
-        <div class="input-group">
-            <input id="searchtext" type="search" name="searchtext" placeholder="Type something and press the search button" class="form-control" autocomplete="off">
-            <span class="input-group-btn">
-                <button id="searchbutton" class="btn btn-default" title="Search">
-                    <span class="material-symbols-outlined">
-                        search
-                    </span>
-                </button>
-            </span>
-        </div>
-        <ul class="dropdown-menu" id="dropdownMenu"></ul>
-    </div>
-    <div class="form-group">
-        <div style="display:inline-block;">
-            <label for="durationMinimumFacet">Duration (Minimum)</label>
-            <select id="durationMinimumFacet" class="form-control" style="display: block; width: 150px">
-                <option value="0">0</option>
-                <option value="30">30</option>
-                <option value="60">60</option>
-                <option value="120">120</option>
-                <option value="180">180</option>
-                <option value="240">240</option>
-            </select>
-        </div>
-        <div style="display:inline-block;">
-            <label for="durationMaximumFacet">Duration (Maximum)</label>
-            <select id="durationMaximumFacet" class="form-control" style="display: block; width: 150px">
-                <option value="0">0</option>
-                <option value="30">30</option>
-                <option value="60">60</option>
-                <option value="120">120</option>
-                <option value="180">180</option>
-                <option value="240">240</option>
-                <option selected value="1000">1000</option>
-            </select>
-        </div>
-        <div style="display:inline-block;">
-            <label for="voteAverageMinimumFacet">Vote Average (Minimum)</label>
-            <select id="voteAverageMinimumFacet" class="form-control" style="display: block; width: 150px">
-                <option value="0.0">0.0</option>
-                <option value="1.0">1.0</option>
-                <option value="2.0">2.0</option>
-                <option value="3.0">3.0</option>
-                <option value="4.0">4.0</option>
-                <option value="5.0">5.0</option>
-                <option value="6.0">6.0</option>
-                <option value="7.0">7.0</option>
-                <option value="8.0">8.0</option>
-                <option value="9.0">9.0</option>
-                <option value="10.0">10.0</option>
-            </select>
+    <div class="autocomplete mb-3">
+        <div class="input-group d-flex">
+            <div class="position-relative flex-grow-1">
+                <div class="input-group">
+                    <input id="searchtext" type="search" name="searchtext" placeholder="Type something and press the search button" class="form-control" autocomplete="off">
+                    <div class="input-group-append">
+                        <button id="searchbutton" class="btn btn-outline-secondary" title="Search">
+                            <span class="material-symbols-outlined">
+                                search
+                            </span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <ul class="dropdown-menu position-absolute w-100" style="top:100%; left:0;" id="dropdownMenu"></ul>
         </div>
     </div>
-    <div id="results-count" style="margin-top: 30px">
+
+    <div class="container-fluid">
+        <div class="row">
+            <div class="col-12 col-md-4 mb-3 form-group accordion">
+                <div class="accordion-item">
+                    <h2 class="accordion-header">
+                        <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#accordion-collapseOne" aria-expanded="true" aria-controls="accordion-collapseOne">
+                            Duration
+                        </button>
+                    </h2>
+                    <div id="accordion-collapseOne" class="accordion-collapse collapse show">
+                        <div class="accordion-body">
+                            <div class="mx-auto" style="width:150px;">
+                                <label for="durationMinimumFacet" class="d-block text-start">Minimum</label>
+                                <select id="durationMinimumFacet" class="form-control  w-100" style="display: block; width: 150px">
+                                    <option value="0">0</option>
+                                    <option value="30">30</option>
+                                    <option value="60">60</option>
+                                    <option value="120">120</option>
+                                    <option value="180">180</option>
+                                    <option value="240">240</option>
+                                </select>
+                            </div>
+                            <div class="mx-auto" style="width:150px;">
+                                <label for="durationMaximumFacet" class="d-block text-start">Maximum</label>
+                                <select id="durationMaximumFacet" class="form-control  w-100" style="display: block; width: 150px">
+                                    <option value="0">0</option>
+                                    <option value="30">30</option>
+                                    <option value="60">60</option>
+                                    <option value="120">120</option>
+                                    <option value="180">180</option>
+                                    <option value="240">240</option>
+                                    <option selected value="1000">1000</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="accordion-item">
+                    <h2 class="accordion-header">
+                        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#accordion-collapseTwo" aria-expanded="false" aria-controls="accordion-collapseTwo">
+                            Vote Average
+                        </button>
+                    </h2>
+                    <div id="accordion-collapseTwo" class="accordion-collapse collapse">
+                        <div class="accordion-body">
+                            <div class="mx-auto" style="width:150px;">
+                                <label for="voteAverageMinimumFacet" class="d-block text-start">Minimum</label>
+                                <select id="voteAverageMinimumFacet" class="form-control w-100" style="display: block; width: 150px">
+                                    <option value="0.0">0.0</option>
+                                    <option value="1.0">1.0</option>
+                                    <option value="2.0">2.0</option>
+                                    <option value="3.0">3.0</option>
+                                    <option value="4.0">4.0</option>
+                                    <option value="5.0">5.0</option>
+                                    <option value="6.0">6.0</option>
+                                    <option value="7.0">7.0</option>
+                                    <option value="8.0">8.0</option>
+                                    <option value="9.0">9.0</option>
+                                    <option value="10.0">10.0</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="accordion-item">
+                    <h2 class="accordion-header">
+                        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#accordion-collapseThree" aria-expanded="false" aria-controls="accordion-collapseThree">
+                            Release Date
+                        </button>
+                    </h2>
+                    <div id="accordion-collapseThree" class="accordion-collapse collapse">
+                        <div class="accordion-body">
+                            <div class="mx-auto" style="width:150px;">
+                                <label for="releaseDateStartFacet" class="d-block text-start">From</label>
+                                <input id="releaseDateStartFacet" class="form-control w-100" style="display: block; width: 150px" type="date" />
+                            </div>
+                            <div class="mx-auto" style="width:150px;">
+                                <label for="releaseDateEndFacet" class="d-block text-start">To</label>
+                                <input id="releaseDateEndFacet" class="form-control w-100" style="display: block; width: 150px" type="date" />
+                            </div>
+
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+            <div class="col-12 col-md-8" id="searchresults" style="margin-bottom:55px;"></div>
+        </div>
+    </div>
+    <div><span id="errortext"></span></div>
+    <div id="results-count" class="my-4">
         <span>
             <span><button id='previous-button' class='btn btn-default' title='Previous'><span class='material-symbols-outlined'>arrow_back_ios</span></button></span>
             <span id='showing-records'><em>Showing records 0  to 0 out of 0 </em></span>
             <span><button id='next-button' class='btn btn-default' title='Next'><span class='material-symbols-outlined'>arrow_forward_ios</span></button></span>
         </span>
     </div>
-    <div><span id="errortext"></span></div>
-    <div id="searchresults" style="margin-bottom:55px;"></div>
     <div class="loading-overlay">
         <div class="spinner-border" role="status"></div>
     </div>
