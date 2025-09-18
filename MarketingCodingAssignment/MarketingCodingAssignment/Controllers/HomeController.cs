@@ -1,7 +1,9 @@
-﻿using MarketingCodingAssignment.Models;
+﻿using Lucene.Net.Search.Suggest;
+using MarketingCodingAssignment.Models;
 using MarketingCodingAssignment.Services;
 using Microsoft.AspNetCore.Mvc;
 using System.Diagnostics;
+using System.Globalization;
 
 namespace MarketingCodingAssignment.Controllers
 {
@@ -18,6 +20,7 @@ namespace MarketingCodingAssignment.Controllers
 
         public IActionResult Index()
         {
+            ViewBag.InvalidDate = DateTime.SpecifyKind(DateTime.MinValue, DateTimeKind.Utc).ToString("yyyy-MM-ddTHH:mm:ss");
             return View();
         }
 
@@ -28,9 +31,16 @@ namespace MarketingCodingAssignment.Controllers
         }
 
         [HttpGet]
-        public JsonResult Search(string searchString, int start, int rows, int? durationMinimum, int? durationMaximum, double? voteAverageMinimum)
+        public JsonResult Autocomplete(string searchString)
         {
-            SearchResultsViewModel searchResults = _searchEngine.Search(searchString, start, rows, durationMinimum, durationMaximum, voteAverageMinimum);
+            IList<Lookup.LookupResult> searchResults = _searchEngine.AutoComplete(searchString);
+            return Json(new { searchResults });
+        }
+
+        [HttpGet]
+        public JsonResult Search(string searchString, int start, int rows, int? durationMinimum, int? durationMaximum, double? voteAverageMinimum, DateTime? releaseDateStart, DateTime? releaseDateEnd)
+        {
+            SearchResultsViewModel searchResults = _searchEngine.Search(searchString, start, rows, durationMinimum, durationMaximum, voteAverageMinimum, releaseDateStart, releaseDateEnd);
             return Json(new {searchResults});
         }
 
@@ -52,6 +62,7 @@ namespace MarketingCodingAssignment.Controllers
         public void PopulateIndex()
         {
             _searchEngine.PopulateIndexFromCsv();
+            _searchEngine.PopulateSuggesterIndex();
             return;
         }
 
