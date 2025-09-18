@@ -43,6 +43,7 @@ Marketing coding test.
    start MarketingCodingAssignment.sln
    ```
 2. Start the project (F5 or Ctrl+F5)
+3. **Wait for the loading overlay to disappear.** This overlay indicates that the index is being built. It typically takes just a few seconds to complete.
 
 ## Reflection
 
